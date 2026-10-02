@@ -963,7 +963,7 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     action = context.user_data.get(
         "admin_action"
     )
-    # ADD BASE
+      # ADD BASE
     if action == "add_base":
 
         parts = update.message.text.split(" ", 3)
@@ -971,7 +971,6 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if len(parts) < 4:
             await update.message.reply_text(
                 "❌ Format ভুল.\n\n"
-                "উদাহরণ:\n"
                 "TH18 Normal Anti https://link"
             )
             return
@@ -1004,26 +1003,25 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         db = load_db()
 
-        if th not in db["bases"]:
-            db["bases"][th] = {
-                "normal": {},
-                "premium": {}
-            }
-
-        if base_type not in db["bases"][th]:
-            db["bases"][th][base_type] = {}
-
-        if category not in db["bases"][th][base_type]:
-            db["bases"][th][base_type][category] = []
-
-        db["bases"][th][base_type][category].append(link)
+        db["bases"].append({
+            "th": th,
+            "type": base_type,
+            "category": category,
+            "name": category,
+            "link": link,
+            "photo": ""
+        })
 
         save_db(db)
 
-        context.user_data.pop("admin_action", None)
+        context.user_data.clear()
 
         await update.message.reply_text(
-            "✅ Base successfully added!"
+            "✅ Base successfully added!\n\n"
+            f"🏰 {th}\n"
+            f"📂 {base_type}\n"
+            f"📝 {category}\n"
+            f"🔗 {link}"
         )
 
         return
