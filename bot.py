@@ -842,17 +842,15 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             return
 
-       context.user_data["admin_action"] = "add_base"
+        context.user_data["admin_action"] = "add_base"
 
-await query.edit_message_text(
-    "➕ ADD BASE\n\n"
-    "Format:\n"
-    "TH18 Normal Category BaseLink\n\n"
-    "উদাহরণ:\n"
-    "TH18 Normal Anti 3 Star https://link"
-)
-
-return
+        await query.edit_message_text(
+            "➕ ADD BASE\n\n"
+            "Format:\n"
+            "TH18 Normal Category BaseLink\n\n"
+            "উদাহরণ:\n"
+            "TH18 Normal Anti https://link"
+        )
 
         return
 
