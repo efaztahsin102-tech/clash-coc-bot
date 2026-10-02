@@ -965,7 +965,70 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     action = context.user_data.get(
         "admin_action"
     )
+    # ADD BASE
+    if action == "add_base":
 
+        parts = update.message.text.split(" ", 3)
+
+        if len(parts) < 4:
+            await update.message.reply_text(
+                "❌ Format ভুল.\n\n"
+                "উদাহরণ:\n"
+                "TH18 Normal Anti https://link"
+            )
+            return
+
+        th = parts[0].upper()
+        base_type = parts[1].lower()
+        category = parts[2]
+        link = parts[3]
+
+        if base_type not in ["normal", "premium"]:
+            await update.message.reply_text(
+                "❌ Type শুধু Normal অথবা Premium হবে."
+            )
+            return
+
+        try:
+            th_number = int(th.replace("TH", ""))
+
+            if th_number < 8 or th_number > 18:
+                await update.message.reply_text(
+                    "❌ শুধু TH8 থেকে TH18 পর্যন্ত base add করা যাবে."
+                )
+                return
+
+        except:
+            await update.message.reply_text(
+                "❌ Town Hall format ভুল."
+            )
+            return
+
+        db = load_db()
+
+        if th not in db["bases"]:
+            db["bases"][th] = {
+                "normal": {},
+                "premium": {}
+            }
+
+        if base_type not in db["bases"][th]:
+            db["bases"][th][base_type] = {}
+
+        if category not in db["bases"][th][base_type]:
+            db["bases"][th][base_type][category] = []
+
+        db["bases"][th][base_type][category].append(link)
+
+        save_db(db)
+
+        context.user_data.pop("admin_action", None)
+
+        await update.message.reply_text(
+            "✅ Base successfully added!"
+        )
+
+        return
     # ADD CATEGORY
     if action == "add_category":
 
