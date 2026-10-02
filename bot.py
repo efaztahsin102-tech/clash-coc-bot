@@ -1,6 +1,8 @@
 import os
 import json
 import requests
+from flask import Flask
+import threading
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -1135,13 +1137,25 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         return
 
+app_web = Flask(__name__)
 
+@app_web.route("/")
+def home():
+    return "Clash COC Bot is running!"
+
+def run_web():
+    app_web.run(
+        host="0.0.0.0",
+        port=int(os.environ.get("PORT", 10000))
+    )
+    
 # =========================
 # MAIN
 # =========================
 
 def main():
-
+    threading.Thread(target=run_web, daemon=True).start()
+    
     if not BOT_TOKEN:
 
         print(
