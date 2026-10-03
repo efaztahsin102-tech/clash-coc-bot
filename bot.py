@@ -216,7 +216,6 @@ def coc_api(path):
         if r.status_code == 200:
             return r.json(), None
         official_err = f"HTTP {r.status_code}"
-        print("CoC API official error:", r.status_code, r.text[:500])
     except Exception as e:
         official_err = type(e).__name__
 
@@ -300,6 +299,7 @@ def base_open_markup(base, admin=False, unlocked=False):
         rows.append([InlineKeyboardButton(f"🔒 UNLOCK — ⭐ {price}", callback_data=f"buy:{base['id']}")])
     if admin:
         rows.append([InlineKeyboardButton("🗑️ DELETE", callback_data=f"admin:delbase:{base['id']}")])
+    rows.append([InlineKeyboardButton("⬅️ Back", callback_data=f"base:mode:{base['th']}:{base['mode']}")])
     return InlineKeyboardMarkup(rows)
 
 
@@ -380,20 +380,35 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await q.edit_message_text(f"📂 <b>{esc(cat)}</b>\n\nNo bases added yet.", parse_mode=ParseMode.HTML,
                                        reply_markup=category_keyboard(th, mode, is_admin(q.from_user.id)))
             return
-        for n, base in enumerate(bases):
+        # Show the saved photo for each base. Telegram cannot turn the existing
+        # text message into a photo, so remove the category message first.
+        try:
+            await q.message.delete()
+        except Exception:
+            pass
+
+        for base in bases:
             unlocked = mode == "normal" or has_purchase(q.from_user.id, base["id"])
             caption = f"📌 <b>{esc(base['name'])}</b>\n🏰 TH{th}\n📂 {esc(cat)}"
             if mode == "premium" and not unlocked:
                 caption += "\n🔒 Premium"
-            if n == 0:
-                await q.edit_message_text(caption, parse_mode=ParseMode.HTML,
-                                           reply_markup=base_open_markup(base, is_admin(q.from_user.id), unlocked))
-            else:
-                try:
-                    await context.bot.send_message(q.from_user.id, caption, parse_mode=ParseMode.HTML,
-                                                   reply_markup=base_open_markup(base, is_admin(q.from_user.id), unlocked))
-                except Exception:
-                    pass
+            markup = base_open_markup(base, is_admin(q.from_user.id), unlocked)
+            try:
+                if base.get("photo_file_id"):
+                    await context.bot.send_photo(
+                        chat_id=q.from_user.id,
+                        photo=base["photo_file_id"],
+                        caption=caption,
+                        parse_mode=ParseMode.HTML,
+                        reply_markup=markup,
+                    )
+                else:
+                    await context.bot.send_message(
+                        q.from_user.id, caption, parse_mode=ParseMode.HTML,
+                        reply_markup=markup
+                    )
+            except Exception as e:
+                print("Base display error:", type(e).__name__)
         return
 
     if data.startswith("base:names:"):
@@ -417,8 +432,27 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         unlocked = base["mode"] == "normal" or has_purchase(q.from_user.id, bid)
         caption = f"📌 <b>{esc(base['name'])}</b>\n🏰 TH{base['th']}\n📂 {esc(base['category'])}"
-        await q.edit_message_text(caption, parse_mode=ParseMode.HTML,
-                                   reply_markup=base_open_markup(base, is_admin(q.from_user.id), unlocked))
+        markup = base_open_markup(base, is_admin(q.from_user.id), unlocked)
+        try:
+            await q.message.delete()
+        except Exception:
+            pass
+        try:
+            if base.get("photo_file_id"):
+                await context.bot.send_photo(
+                    chat_id=q.from_user.id,
+                    photo=base["photo_file_id"],
+                    caption=caption,
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=markup,
+                )
+            else:
+                await context.bot.send_message(
+                    q.from_user.id, caption, parse_mode=ParseMode.HTML,
+                    reply_markup=markup
+                )
+        except Exception as e:
+            print("Base view error:", type(e).__name__)
         return
 
     if data == "cwl":
