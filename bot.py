@@ -216,6 +216,7 @@ def coc_api(path):
         if r.status_code == 200:
             return r.json(), None
         official_err = f"HTTP {r.status_code}"
+        print("CoC API official error:", r.status_code, r.text[:500])
     except Exception as e:
         official_err = type(e).__name__
 
