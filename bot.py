@@ -1,5 +1,6 @@
 import os
 import json
+import hashlib
 import re
 import time
 import threading
@@ -204,18 +205,30 @@ def coc_get(path):
 
 
 def coc_api(path):
-    # Official Clash of Clans API endpoint.
+    # Prefer the official API. If the Render IP is not allowed for the key,
+    # try the RoyaleAPI proxy as a fallback. Never expose the API key in logs.
     if not COC_API_KEY:
         return None, "API unavailable"
-    url = "https://api.clashofclans.com/v1" + path
     headers = {"Authorization": f"Bearer {COC_API_KEY}"}
+    official_url = "https://api.clashofclans.com/v1" + path
     try:
-        r = requests.get(url, headers=headers, timeout=15)
+        r = requests.get(official_url, headers=headers, timeout=15)
         if r.status_code == 200:
             return r.json(), None
-        return None, f"HTTP {r.status_code}: {r.text[:200]}"
+        official_err = f"HTTP {r.status_code}"
     except Exception as e:
-        return None, str(e)
+        official_err = type(e).__name__
+
+    # Render's outbound IP can differ from the IP allowlisted on a CoC API key.
+    # The proxy fallback avoids treating that as a generic 'API unavailable'.
+    proxy_url = "https://cocproxy.royaleapi.dev/v1" + path
+    try:
+        r = requests.get(proxy_url, headers=headers, timeout=15)
+        if r.status_code == 200:
+            return r.json(), None
+        return None, f"Official {official_err}; proxy HTTP {r.status_code}"
+    except Exception as e:
+        return None, f"Official {official_err}; proxy {type(e).__name__}"
 
 
 def api_unavailable_text():
@@ -408,7 +421,15 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if data == "cwl":
+        await show_cwl_menu(q)
+        return
+
+    if data == "cwl:normal":
         await show_cwl(q, context)
+        return
+
+    if data == "cwl:premium":
+        await cwl_premium(q, context)
         return
 
     if data == "player":
@@ -501,6 +522,18 @@ async def callback_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ============================================================
 # CWL
 # ============================================================
+async def show_cwl_menu(q):
+    await q.edit_message_text(
+        "🏆 <b>CWL TRACKER</b>\n\nChoose a mode:",
+        parse_mode=ParseMode.HTML,
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🆓 NORMAL", callback_data="cwl:normal")],
+            [InlineKeyboardButton("⭐ PREMIUM", callback_data="cwl:premium")],
+            [InlineKeyboardButton("⬅️ Home", callback_data="home")],
+        ]),
+    )
+
+
 async def show_cwl(q, context):
     clan_tag = with_db(lambda db: db["settings"].get("clan_tag", ""))
     if not clan_tag:
@@ -1184,7 +1217,6 @@ def main():
     if not BOT_TOKEN:
         raise RuntimeError("BOT_TOKEN environment variable is missing")
     ensure_categories_in_db()
-    threading.Thread(target=run_health_server, daemon=True).start()
 
     application = Application.builder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("start", start))
@@ -1196,10 +1228,20 @@ def main():
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
     application.add_error_handler(error_handler)
 
-    print("Bot is running...")
+    base_url = os.getenv("RENDER_EXTERNAL_URL", "https://clash-coc-bot.onrender.com").rstrip("/")
+    secret_token = hashlib.sha256(BOT_TOKEN.encode("utf-8")).hexdigest()[:32]
+    print("Bot is running in webhook mode...")
     print("Admin ID configured:", bool(ADMIN_ID))
     print("CoC API configured:", bool(COC_API_KEY))
-    application.run_polling(drop_pending_updates=True)
+    print("Webhook URL configured:", base_url + "/telegram")
+    application.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        url_path="telegram",
+        webhook_url=base_url + "/telegram",
+        secret_token=secret_token,
+        drop_pending_updates=True,
+    )
 
 
 def ensure_categories_in_db():
